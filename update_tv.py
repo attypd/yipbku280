@@ -1,54 +1,64 @@
 import requests
 import re
-import time
+import os
 
-# 从 APK 中提取的后端验证接口和配置
-AUTH_URL = "http://64.32.9.99:7999/index.php" # 核心刷号接口
-UA = "CloudTV/6.4.5 (Android/12)" # 模拟 App 访问身份
-
-def fetch_latest_token():
-    """模拟 App 刷号获取最新的 Token"""
+# 1. 获取最新授权 Token
+def get_new_token():
+    # 这是从你提供的刷号工具中分析出的初始化接口
+    auth_url = "http://64.32.9.99:7999/index.php?m=init&v=6.4.5"
+    headers = {
+        "User-Agent": "CloudTV/6.4.5 (Android/12)",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive"
+    }
     try:
-        # 模拟 App 启动时的握手请求
-        params = {"m": "init", "v": "6.4.5"} 
-        resp = requests.get(AUTH_URL, params=params, headers={"User-Agent": UA}, timeout=10)
-        
-        # 使用正则从返回数据中提取 32 位哈希 Token
-        # 注意：这里的正则根据 APK 返回格式调整
-        match = re.search(r'[a-f0-9]{32}', resp.text)
-        if match:
-            return match.group(0)
+        response = requests.get(auth_url, headers=headers, timeout=15)
+        # 在返回的乱码或 JSON 中匹配 32 位的哈希字符串
+        tokens = re.findall(r'[a-f0-9]{32}', response.text)
+        if tokens:
+            new_token = tokens[0]
+            print(f"成功获取新 Token: {new_token}")
+            return new_token
     except Exception as e:
-        print(f"刷号失败: {e}")
+        print(f"请求失败: {e}")
     return None
 
-def update_file(new_token):
-    """更新 live.txt 中的所有链接"""
-    file_path = "live.txt"
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+# 2. 自动寻找并更新 TXT 文件
+def update_all_txt_files(new_token):
+    # 获取当前目录下所有的 txt 文件
+    target_files = [f for f in os.listdir('.') if f.endswith('.txt')]
+    
+    if not target_files:
+        print("错误：仓库里没找到任何 .txt 文件！")
+        return
+
+    for file_name in target_files:
+        print(f"正在处理文件: {file_name}")
         
-        new_lines = []
-        for line in lines:
-            # 找到含有 mitv:// 的行，替换其中的 32 位 Token
-            if "mitv://" in line:
-                updated_line = re.sub(r'/[a-f0-9]{32}\.ts', f'/{new_token}.ts', line)
-                new_lines.append(updated_line)
-            else:
-                new_lines.append(line)
+        with open(file_name, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 使用正则替换掉链接中的 32 位 Token
+        # 匹配格式：/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.ts
+        pattern = r'/[a-f0-9]{32}\.ts'
+        replacement = f'/{new_token}.ts'
         
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
-        print(f"成功更新 Token 为: {new_token}")
-        return True
-    except Exception as e:
-        print(f"文件处理失败: {e}")
-        return False
+        # 检查是否能匹配到
+        if not re.search(pattern, content):
+            print(f"警告：在 {file_name} 中没找到符合格式的直播链接。")
+            continue
+
+        # 执行全局替换
+        new_content = re.sub(pattern, replacement, content)
+        
+        with open(file_name, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        print(f"文件 {file_name} 已成功更新！")
 
 if __name__ == "__main__":
-    token = fetch_latest_token()
+    token = get_new_token()
     if token:
-        update_file(token)
+        update_all_txt_files(token)
     else:
-        print("未获取到有效 Token，请检查后台接口状态。")
+        print("未能获取 Token，停止更新。")
