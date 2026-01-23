@@ -1,14 +1,14 @@
 name: CloudTV Auto Refresh
 on:
   schedule:
-    - cron: '0 */4 * * *'
-  workflow_dispatch:
+    - cron: '0 */4 * * *' # 每 4 小时刷一次
+  workflow_dispatch:      # 允许手动点
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    permissions: # 显式声明权限
-      contents: write
+    permissions:
+      contents: write     # 必须开启写入权限
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -21,13 +21,19 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run script
+      - name: Run Update Script
         run: python update_tv.py
 
-      - name: Push changes
+      - name: Commit and Push
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Action"
           git add *.txt
-          git commit -m "Auto Update $(date)" || echo "No changes to commit"
-          git push origin main || git push origin master
+          # 只有在文件真的变了的时候才提交，防止报错
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto Update Token $(date)"
+            git push origin main || git push origin master
+            echo ">>> [成功] 修改已推送到仓库"
+          else
+            echo ">>> [跳过] 文件内容无变化，无需推送"
+          fi
