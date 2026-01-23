@@ -12,40 +12,39 @@ def get_new_token():
         tokens = re.findall(r'[a-f0-9]{32}', response.text)
         if tokens:
             t = tokens[0]
-            print(f">>> 成功抓取到新 Token: {t}")
+            print(f">>> [成功] 抓取到新 Token: {t}")
             return t
-        else:
-            print(">>> 接口返回内容异常，未找到 Token")
+        print(">>> [错误] 接口返回内容中没找到 Token")
     except Exception as e:
-        print(f">>> 接口请求报错: {e}")
+        print(f">>> [报错] 接口请求异常: {e}")
     return None
 
 def force_update():
     new_token = get_new_token()
     if not new_token: return
 
-    # 自动识别仓库内唯一的 txt 文件
+    # 自动识别仓库内所有的 txt 文件进行更新
     txt_files = [f for f in os.listdir('.') if f.endswith('.txt')]
     if not txt_files:
-        print(">>> 错误: 目录下没找到 .txt 文件")
+        print(">>> [错误] 目录下没找到任何 .txt 文件")
         return
 
     for target_file in txt_files:
-        print(f">>> 正在处理: {target_file}")
+        print(f">>> 正在处理文件: {target_file}")
         with open(target_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 强力模糊匹配：把所有 32 位哈希全换了
+        # 匹配所有 32 位哈希值并替换
         old_tokens = re.findall(r'[a-f0-9]{32}', content)
         if not old_tokens:
-            print(f">>> 警告: 在 {target_file} 中没找到任何 32 位 Token 格式")
+            print(f">>> [警告] 文件内未识别到直播源格式")
             continue
 
         new_content = re.sub(r'[a-f0-9]{32}', new_token, content)
         
         with open(target_file, 'w', encoding='utf-8') as f:
             f.write(new_content)
-        print(f">>> 替换完成，共识别到 {len(old_tokens)} 处链接")
+        print(f">>> [完成] {target_file} 已更新 {len(old_tokens)} 处链接")
 
 if __name__ == "__main__":
     force_update()
