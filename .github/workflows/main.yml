@@ -1,13 +1,14 @@
 name: CloudTV Auto Refresh
-
 on:
   schedule:
-    - cron: '0 */4 * * *' # 每 4 小时自动刷一次号
-  workflow_dispatch: # 允许你手动点击运行
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    permissions: # 显式声明权限
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -20,13 +21,13 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run refresh script
+      - name: Run script
         run: python update_tv.py
 
-      - name: Commit and Push changes
+      - name: Push changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add live.txt
-          git commit -m "Auto refresh token: $(date)" || echo "No changes to commit"
-          git push
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Action"
+          git add *.txt
+          git commit -m "Auto Update $(date)" || echo "No changes to commit"
+          git push origin main || git push origin master
