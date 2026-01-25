@@ -8,46 +8,39 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出代码
+      - name: 检出
         uses: actions/checkout@v4
 
-      - name: 50线程地毯式探测
+      - name: 50线程全量探测
         id: scanner
         run: |
           W="https://p3p-scanner.1747138780.workers.dev"
-          echo "正在全量扫描 10000-56000 端口..."
-          
-          # 生成全量序列并打乱顺序，确保不留死角
+          # 直接扫描 10000-56000 全段，打乱顺序
           for p in $(seq 10000 56000 | shuf); do
             (
               res=$(curl -s --max-time 2 "$W/?port=$p")
               if [ "$res" = "OK" ]; then
                 echo "$p" > result.txt
-                echo "Bingo! 找到有效端口: $p"
+                echo "Bingo! $p"
               fi
             ) &
-
-            # 50个一组并发，扫完这组再进下一组
             if [[ $((p % 50)) -eq 0 ]]; then
               if [ -f result.txt ]; then break; fi
               wait
             fi
           done
-          
           if [ -f result.txt ]; then
             P=$(cat result.txt)
             echo "p=$P" >> $GITHUB_OUTPUT
           fi
 
-      - name: 自动更新文件
+      - name: 更新文件
         if: steps.scanner.outputs.p != ''
         run: |
           NEW_P=${{ steps.scanner.outputs.p }}
-          # 这一行负责把 list.txt 里的老端口全部换成新抓到的 $NEW_P
           sed -i "s/focus169.org:[0-9]*/focus169.org:$NEW_P/g" list.txt
-          
           git config --local user.email "bot@github.com"
           git config --local user.name "P3P-Fixer"
           git add list.txt
-          git commit -m "全量复活成功：端口更新至 $NEW_P" || exit 0
+          git commit -m "复活成功：端口 $NEW_P" || exit 0
           git push
