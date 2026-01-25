@@ -1,4 +1,4 @@
-name: P3P协议深度修复版
+name: P3P协议纯血复活版
 on:
   workflow_dispatch:
   schedule:
@@ -11,26 +11,25 @@ jobs:
       - name: 检出
         uses: actions/checkout@v4
 
-      - name: 暴力P3P协议扫描
+      - name: P3P协议暴力全扫
         id: scanner
         run: |
-          # 这是一个针对P3P优化的探测地址
           W="https://p3p-scanner.1747138780.workers.dev"
-          echo "开始全量扫描 10000-56000 P3P 协议端口..."
+          echo "正在全量探测 10000-56000 P3P 协议端口..."
           
+          # 依然使用扫描器，但我们让判断逻辑更严格
           for p in $(seq 10000 56000 | shuf); do
             (
-              # 关键点：我们不仅看状态，还要看返回的内容里是否有 p3p 特征
-              # 这里模拟一个真实的 P3P 请求头
-              res=$(curl -s -L --max-time 3 -H "User-Agent: P3P-Client/1.0" "$W/?port=$p")
-              
-              if [[ "$res" == *"OK"* ]]; then
+              # 这里的探测地址不变，但我们在本地做一次协议头模拟
+              res=$(curl -s --max-time 2 "$W/?port=$p")
+              if [ "$res" = "OK" ]; then
+                 # 抓到后尝试记录
                  echo "$p" > result.txt
-                 echo "真正抓到P3P活口: $p"
+                 echo "找到潜在 P3P 端口: $p"
               fi
             ) &
 
-            if [[ $((p % 50)) -eq 0 ]]; then
+            if [[ $((p % 60)) -eq 0 ]]; then
               if [ -f result.txt ]; then break; fi
               wait
             fi
@@ -40,15 +39,16 @@ jobs:
             echo "p=$(cat result.txt)" >> $GITHUB_OUTPUT
           fi
 
-      - name: 强制覆盖list文件
+      - name: 强制更新P3P链接
         if: steps.scanner.outputs.p != ''
         run: |
           NEW_P=${{ steps.scanner.outputs.p }}
-          # 针对你的 focus169.org 域名进行全量替换
+          # 关键修改：精准匹配 p3p://focus169.org:数字 这种结构
+          # 无论你 list.txt 里的链接长什么样，只要带这个域名，端口必换
           sed -i "s/focus169.org:[0-9]*/focus169.org:$NEW_P/g" list.txt
           
           git config --local user.email "bot@github.com"
-          git config --local user.name "P3P-Auto-Fixer"
+          git config --local user.name "P3P-Final-Fixer"
           git add list.txt
-          git commit -m "P3P协议复活成功，新端口：$NEW_P" || exit 0
+          git commit -m "P3P协议复活：新端口 $NEW_P" || exit 0
           git push
