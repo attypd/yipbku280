@@ -1,15 +1,15 @@
-name: P3P_Full_Scan_10000_60000
+name: P3P_Final_Scan
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 */1 * * *'
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Scan_10000_60000
+      - name: Scan_Ports
         id: scanner
         run: |
           W="https://p3p-scanner.1747138780.workers.dev"
@@ -20,7 +20,7 @@ jobs:
                 echo "$p" > result.txt
               fi
             ) &
-            if [[ $((p % 100)) -eq 0 ]]; then
+            if [[ $((p % 150)) -eq 0 ]]; then
               if [ -f result.txt ]; then break; fi
               wait
             fi
@@ -28,7 +28,7 @@ jobs:
           if [ -f result.txt ]; then
             echo "p=$(cat result.txt)" >> $GITHUB_OUTPUT
           fi
-      - name: Auto_Git_Push
+      - name: Git_Push
         if: steps.scanner.outputs.p != ''
         run: |
           NEW_P=${{ steps.scanner.outputs.p }}
@@ -36,5 +36,5 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "P3P_Bot"
           git add list.txt
-          git commit -m "Update P3P Port $NEW_P" || exit 0
+          git commit -m "Fix $NEW_P" || exit 0
           git push
