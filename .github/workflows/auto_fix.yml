@@ -1,4 +1,4 @@
-name: P3P直播源全自动修复
+name: P3P暴力多线程扫描
 on:
   schedule:
     - cron: '0 */2 * * *'
@@ -11,23 +11,35 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 全段暴力探测
+      - name: 20线程暴力探测
         id: scanner
         run: |
-          WORKER_URL="https://p3p-scanner.1747138780.workers.dev"
+          W="https://p3p-scanner.1747138780.workers.dev"
+          echo "开始 10000-56000 全段随机轰炸..."
           
-          # 核心逻辑：在 10000-45000 之间随机挑选端口，既高效又不容易被封
-          # shuf 命令会将数字打乱，head -n 5000 表示这一轮先随机抽 5000 个幸运数字
-          for p in $(seq 10000 45000 | shuf | head -n 5000); do
-            res=$(curl -s --max-time 3 "$WORKER_URL/?port=$p")
-            if [ "$res" = "OK" ]; then
-              echo "p=$p" >> $GITHUB_OUTPUT
-              echo "!!! 抓到有效端口: $p"
-              break
+          # 随机抽取 8000 个端口进行探测
+          for p in $(seq 10000 56000 | shuf | head -n 8000); do
+            (
+              res=$(curl -s --max-time 2 "$W/?port=$p")
+              if [ "$res" = "OK" ]; then
+                echo "$p" > result.txt
+                echo "Bingo! 找到端口: $p"
+              fi
+            ) &
+
+            # 这里的控制逻辑：每 40 个任务并行一次，防止过载
+            if [[ $((p % 40)) -eq 0 ]]; then
+              if [ -f result.txt ]; then break; fi
+              wait
             fi
           done
+          
+          if [ -f result.txt ]; then
+            P=$(cat result.txt)
+            echo "p=$P" >> $GITHUB_OUTPUT
+          fi
 
-      - name: 批量替换并推送
+      - name: 自动更新文件
         if: steps.scanner.outputs.p != ''
         run: |
           NEW_P=${{ steps.scanner.outputs.p }}
@@ -35,5 +47,5 @@ jobs:
           git config --local user.email "bot@github.com"
           git config --local user.name "P3P-Fixer"
           git add list.txt
-          git commit -m "暴力搜索成功：端口已更新至 $NEW_P" || exit 0
+          git commit -m "多线程修复成功：端口 $NEW_P" || exit 0
           git push
