@@ -1,8 +1,8 @@
 name: P3P直播源全自动修复
 on:
   schedule:
-    - cron: '0 */2 * * *' # 每2小时检查一次
-  workflow_dispatch:      # 允许手动立即运行
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
 
 jobs:
   fix:
@@ -11,22 +11,18 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 云端探测新端口
+      - name: 全段暴力探测
         id: scanner
         run: |
-          # 这是你刚才测试成功的 Cloudflare 地址
           WORKER_URL="https://p3p-scanner.1747138780.workers.dev"
           
-          # 从你的 list.txt 提取旧端口
-          OLD_P=$(grep -oP 'focus169.org:\K[0-9]+' list.txt | head -n 1 || echo "54699")
-          
-          # 扫描序列：旧端口上下各 2000 个
-          NEW_P=""
-          for p in $(seq $OLD_P $((OLD_P+2000))) $(seq $((OLD_P-1)) -1 $((OLD_P-2000))); do
-            res=$(curl -s --max-time 10 "$WORKER_URL/?port=$p")
+          # 核心逻辑：在 10000-45000 之间随机挑选端口，既高效又不容易被封
+          # shuf 命令会将数字打乱，head -n 5000 表示这一轮先随机抽 5000 个幸运数字
+          for p in $(seq 10000 45000 | shuf | head -n 5000); do
+            res=$(curl -s --max-time 3 "$WORKER_URL/?port=$p")
             if [ "$res" = "OK" ]; then
-              NEW_P=$p
               echo "p=$p" >> $GITHUB_OUTPUT
+              echo "!!! 抓到有效端口: $p"
               break
             fi
           done
@@ -35,11 +31,9 @@ jobs:
         if: steps.scanner.outputs.p != ''
         run: |
           NEW_P=${{ steps.scanner.outputs.p }}
-          # 这一行会把你 list.txt 里几百个 54699 一次性全换成新的
           sed -i "s/focus169.org:[0-9]*/focus169.org:$NEW_P/g" list.txt
-          
           git config --local user.email "bot@github.com"
           git config --local user.name "P3P-Fixer"
           git add list.txt
-          git commit -m "自动修复：端口已更新至 $NEW_P" || exit 0
+          git commit -m "暴力搜索成功：端口已更新至 $NEW_P" || exit 0
           git push
