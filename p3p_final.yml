@@ -1,0 +1,46 @@
+name: P3P终极复活探测
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */2 * * *'
+
+jobs:
+  p3p_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 50线程全量轰炸
+        id: scanner
+        run: |
+          W="https://p3p-scanner.1747138780.workers.dev"
+          echo "正在全量扫描 10000-56000 端口..."
+          # 必须生成全量序列，一个都不许漏
+          for p in $(seq 10000 56000 | shuf); do
+            (
+              res=$(curl -s --max-time 2 "$W/?port=$p")
+              if [ "$res" = "OK" ]; then
+                echo "$p" > result.txt
+                echo "Bingo! $p"
+              fi
+            ) &
+            if [[ $((p % 50)) -eq 0 ]]; then
+              if [ -f result.txt ]; then break; fi
+              wait
+            fi
+          done
+          if [ -f result.txt ]; then
+            echo "p=$(cat result.txt)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 更新文件
+        if: steps.scanner.outputs.p != ''
+        run: |
+          NEW_P=${{ steps.scanner.outputs.p }}
+          sed -i "s/focus169.org:[0-9]*/focus169.org:$NEW_P/g" list.txt
+          git config --local user.email "bot@github.com"
+          git config --local user.name "P3P-Fixer"
+          git add list.txt
+          git commit -m "复活成功：$NEW_P" || exit 0
+          git push
