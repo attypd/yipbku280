@@ -1,21 +1,51 @@
-name: 15分钟自动扫描对时更新
+name: 15分钟自动扫描对对碰
+
 on:
   schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch:
+    # --- 北京时间转换 UTC 说明 ---
+    # 早上 07:00 - 09:00 (UTC 23:00 - 01:00)
+    - cron: '*/15 23 * * *'
+    - cron: '*/15 0 * * *'
+    
+    # 下午 14:00 - 17:00 (UTC 06:00 - 09:00)
+    - cron: '*/15 6-8 * * *'
+    
+    # 晚上 22:00 - 24:00 (UTC 14:00 - 16:00)
+    - cron: '*/15 14-15 * * *'
+
+  workflow_dispatch: # 保持手动更新功能
+
 jobs:
   run_update:
     runs-on: ubuntu-latest
+    # 必须开启写入权限，否则清理和推送会失败
+    permissions:
+      contents: write
+      actions: write
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4 # 升级到v4更稳定，功能不变
+
       - name: 安装依赖
         run: pip install requests
+
       - name: 运行扫描脚本
-        run: python update_all.py
-      - name: 提交并对时
+        run: python update_all_py # 核心扫描逻辑保持不变
+
+      - name: 提交并对对
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git commit -m "自动更新对时: $(date)" || exit 0
+          git commit -m "自动更新对对: $(date)" || exit 0
           git push
+
+      # --- 新增：自动清理运行记录，仅保留 1 天 ---
+      - name: 清理超过1天的工作流记录
+        uses: Mattraiano/delete-old-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 3 # 至少保留最近3次防止列表全空
