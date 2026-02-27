@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 # --- 配置信息 ---
 DOMAIN = "url.cdnhs.store"
-FILE_LIST = ["cvs_mylive.txt", "total_live.txt", "private_only.txt"]
+FILE_LIST = ["total_live.txt", "private_only.txt"]
 
 def check_port(port):
     """底层 TCP 探测，确保绕过 Web 拦截"""
